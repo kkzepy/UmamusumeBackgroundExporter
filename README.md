@@ -10,6 +10,6 @@ Current features are:
  - Exporting backgrounds from JP Umamusume
  
 ## Examples
-<img src="./assets/bg_0001_01110.png" alt="Logo" width="200" align="center">
-<img src="./assets/bg_0002_00130.png" alt="Logo" width="200" align="center">
-<img src="./assets/bg_0003_05110.png" alt="Logo" width="200" align="center">
+<img src="./assets/bg_0001_01110.png" alt="Logo" width="400" align="center">
+<img src="./assets/bg_0002_00130.png" alt="Logo" width="400" align="center">
+<img src="./assets/bg_0003_05110.png" alt="Logo" width="400" align="center">
