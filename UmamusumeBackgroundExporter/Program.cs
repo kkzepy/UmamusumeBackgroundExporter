@@ -1,6 +1,7 @@
 ﻿using AssetsTools.NET;
 using AssetsTools.NET.Extra;
 using AssetsTools.NET.Texture;
+using SQLitePCL;
 using System;
 using System.Diagnostics;
 using System.Text.Json;
@@ -27,7 +28,8 @@ public class Config
     public string exportPath { get; set; } = "bg/";
     public string exportExtension { get; set; } = ".png";
     public int takeMax { get; set; } = -1;
-    public bool update = false;
+    public bool update { get; set; } = false;
+    public bool overwrite { get; set; } = false;
 }
 
 public class App
@@ -55,6 +57,8 @@ public class App
         // 5. Export to PNG  
         FileStream outStream = File.Create(name);
         tf.DecodeTextureImage(rawData, outStream, exportType);
+        manager.UnloadAssetsFile(assetsInst);
+        manager.UnloadBundleFile(bunInst);
         abStream.Close();
         outStream.Close();
     }
@@ -64,6 +68,7 @@ public class App
         Config config;
         try
         {
+            Console.WriteLine("Loaded config.json");
             string jsonString = File.ReadAllText("config.json");
             config = JsonSerializer.Deserialize<Config>(jsonString);
         } catch (Exception e)
@@ -118,6 +123,7 @@ public class App
         }
 
         int successCount = 0;
+        int iterations = 0;
         Stopwatch stopwatch = Stopwatch.StartNew();
         
 
@@ -130,7 +136,19 @@ public class App
 
             try
             {
-                Console.Write($"INFO: Loading {bg.Key}... ");
+                Console.Write($"{iterations} INFO: Loading {bg.Key}... ");
+
+                if (File.Exists(path))
+                {
+                    if (config.overwrite)
+                    {
+                        Console.Write($"OVERWRITING! ");
+                    } else
+                    {
+                        Console.WriteLine("Exists, skipping...");
+                        continue;
+                    }
+                }
 
                 ExportTexture(new UmaAssetBundleStream(abPath, bg.Value.FKey), exportType, path);
 
@@ -153,6 +171,11 @@ public class App
             catch (Exception e)
             {
                 Console.WriteLine($"ERROR Loading {bg.Key}: {e}");
+            }
+
+            finally
+            {
+                iterations++;
             }
         }
 
