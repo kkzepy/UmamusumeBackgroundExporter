@@ -24,22 +24,25 @@ public class Config
     public string DBKey { get; set; } = "6D5B65336336632554712D73505363386D34377B356370233734532973433633";
     public string DBBaseKey { get; set; } = "F170CEA4DFCEA3E1A5D8C70BD1000000";
     public string ABKey { get; set; } = "532B4631E4A7B9473E7CFB";
+    public string GlobalDBKey { get; set; } = "56636B634272377665704162";
+    public bool GlobalDB { get; set; } = true;
 
     public string exportPath { get; set; } = "bg/";
     public string exportExtension { get; set; } = ".png";
+    public int quality { get; set; } = 90;
     public int takeMax { get; set; } = -1;
-    public bool update { get; set; } = false;
     public bool overwrite { get; set; } = false;
 }
 
 public class App
 {
     static AssetsManager manager = new AssetsManager();
+    static Stopwatch stopwatch;
 
     public static void ExportTexture(
         UmaAssetBundleStream abStream,
         ImageExportType exportType = ImageExportType.Png,
-        string name="output.png")
+        string name="output.png", int quality = 90)
     {
         BundleFileInstance bunInst = manager.LoadBundleFile(abStream);
 
@@ -56,7 +59,7 @@ public class App
 
         // 5. Export to PNG  
         FileStream outStream = File.Create(name);
-        tf.DecodeTextureImage(rawData, outStream, exportType);
+        tf.DecodeTextureImage(rawData, outStream, exportType, quality);
         manager.UnloadAssetsFile(assetsInst);
         manager.UnloadBundleFile(bunInst);
         abStream.Close();
@@ -76,12 +79,18 @@ public class App
             Console.WriteLine($"ERROR Loading config.json: {e}\n\nINFO: Defaulting config to hardcoded values.");
             config = new();
             config.persistentPath = Config.GetPersistentPath();
+            Console.WriteLine($"INFO: Using {config.persistentPath} as default persistent path.");
         }
 
         try
         {
+            if (config.persistentPath == null)
+            {
+                config.persistentPath = Config.GetPersistentPath();
+                Console.WriteLine($"INFO: persistentPath is null! Defaulting to {config.persistentPath}");
+            }
             UmaDatabase.PersistentPath = config.persistentPath;
-            UmaDatabase.DBKey = config.DBKey;
+            UmaDatabase.DBKey = config.GlobalDB ? config.GlobalDBKey : config.DBKey; if (config.GlobalDB) Console.WriteLine("INFO: Using global database.");
             UmaDatabase.DBBaseKey = config.DBBaseKey;
             UmaDatabase.ABKey = config.ABKey;
 
@@ -90,7 +99,7 @@ public class App
         } catch (Exception e)
         {
             Console.WriteLine($"ERROR Loading database: {e}\n\nAre you sure using the correct keys and are not using the global Umamusume? You can set this settings in config.json");
-            return;
+            Environment.Exit(1);
         }
 
         var bgList = UmaDatabase.MetaData.Where(x => x.Value.Type == UmaFileType.bg);
@@ -117,16 +126,31 @@ public class App
             exportType = ImageExportType.Png;
         }
 
+        Console.WriteLine($"INFO: Total backgrounds: {bgList.Count()}");
+
         if (config.takeMax != -1)
         {
+            Console.WriteLine($"INFO: Taking only {config.takeMax} out of {bgList.Count()}");
             bgList = bgList.Take(config.takeMax);
         }
 
+        Console.WriteLine($"INFO: Using quality: {config.quality}");
+
         int successCount = 0;
         int iterations = 0;
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        
+        stopwatch = Stopwatch.StartNew();
 
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            stopwatch.Stop();
+            Console.WriteLine($"\nINFO: Terminated by user\nINFO: Exported {successCount} out of {bgList.Count()}\nExecution time: {stopwatch.ElapsedMilliseconds} ms ({stopwatch.ElapsedMilliseconds / 1000} s)");
+
+            // Set to true to keep the application alive (manual exit)
+            // Set to false (default) to let the OS kill the process after this handler
+            e.Cancel = true;
+
+            Environment.Exit(0);
+        };
 
         foreach (var bg in bgList)
         {
@@ -150,7 +174,7 @@ public class App
                     }
                 }
 
-                ExportTexture(new UmaAssetBundleStream(abPath, bg.Value.FKey), exportType, path);
+                ExportTexture(new UmaAssetBundleStream(abPath, bg.Value.FKey), exportType, path, config.quality);
 
                 Console.WriteLine($"Written to {path}");
                 successCount++;
@@ -162,7 +186,7 @@ public class App
                 Directory.CreateDirectory(config.exportPath);
                 Console.Write($"Retrying {bg.Key}...");
 
-                ExportTexture(new UmaAssetBundleStream(abPath, bg.Value.FKey), exportType, path);
+                ExportTexture(new UmaAssetBundleStream(abPath, bg.Value.FKey), exportType, path, config.quality);
 
                 Console.WriteLine($"Written to {path}");
                 successCount++;
@@ -180,6 +204,7 @@ public class App
         }
 
         stopwatch.Stop();
-        Console.WriteLine($"\nExported {successCount} out of {bgList.Count()}\nExecution time: {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"\nExported {successCount} out of {bgList.Count()}\nExecution time: {stopwatch.ElapsedMilliseconds} ms ({stopwatch.ElapsedMilliseconds/1000} s)");
     }
+
 }
